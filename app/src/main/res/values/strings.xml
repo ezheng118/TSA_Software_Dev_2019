@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">DocScanner</string>
+    <string name="import_button_text">IMPORT IMAGE</string>
+    <string name="change_import_button_text">Change Selection</string>
+    <string name="confirm_import_button_text">Confirm Selection</string>
+    <string name="confirm_cancel_import_text">Is this the image you would like to scan?</string>
+    <string name="preview_content_descriptor">Preview image</string>
+
+    <string name="scan_button_text">SCAN DOCUMENT</string>
+
+    <string name="cv_preview_content_descriptor">CV preview</string>
+</resources>
