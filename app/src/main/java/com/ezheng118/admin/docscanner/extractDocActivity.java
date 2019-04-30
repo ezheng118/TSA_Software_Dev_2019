@@ -3,6 +3,7 @@ package com.ezheng118.admin.docscanner;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -20,7 +21,9 @@ import org.opencv.core.Scalar;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 
+import java.io.File;
 import java.io.FileDescriptor;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +46,7 @@ public class extractDocActivity extends AppCompatActivity {
 
         try {
             image = convertToBmp(imgUri);
-            showIMG(image);
+            showImg(image);
             findDocContours(image);
         }
         catch(IOException e){
@@ -95,11 +98,11 @@ public class extractDocActivity extends AppCompatActivity {
         return img;
     }
 
-    private void showIMG(Bitmap img){
+    private void showImg(Bitmap img){
         imPreview.setImageBitmap(img);
     }
 
-    private void showIMG(Mat img_prev){
+    private void showImg(Mat img_prev){
         Bitmap bmp;
         try {
             bmp = Bitmap.createBitmap(img_prev.cols(), img_prev.rows(), Bitmap.Config.ARGB_8888);
@@ -119,13 +122,13 @@ public class extractDocActivity extends AppCompatActivity {
 
         //declaring each frame needed in each step of processing
         Mat imgFrame = new Mat(width, height, CvType.CV_8UC4);
-        Log.d("DEBUGGING", "Able to import and use cv libs");
         Mat hsvFrame = new Mat(width, height, CvType.CV_8UC4);
         Mat thresh1 = new Mat(width, height, CvType.CV_8UC4);
         Mat thresh2 = new Mat(width, height, CvType.CV_8UC4);
         Mat combinedThresh = new Mat(width, height, CvType.CV_8UC4);
         Mat mask = new Mat(width, height, CvType.CV_8UC4);
         Mat edges = new Mat(width, height, CvType.CV_8UC4);
+        Log.d("DEBUGGING", "Able to import and use cv libs");
 
         Utils.bitmapToMat(bmp_img, imgFrame);
         Log.d("DEBUGGING", "successfully converted from bmp to mat");
@@ -133,7 +136,9 @@ public class extractDocActivity extends AppCompatActivity {
         //change from RGB to HSV
         Imgproc.cvtColor(imgFrame, hsvFrame, Imgproc.COLOR_RGB2HSV);
 
-        showIMG(hsvFrame);
+        Log.d("DEBUGGING", "converted to hsv");
+
+        showImg(hsvFrame);
 
         //define the color thresholds for what is white
         Scalar lower_white1 = new Scalar(10, 0, 110);
@@ -147,21 +152,23 @@ public class extractDocActivity extends AppCompatActivity {
         //combine the filters
         Core.bitwise_or(thresh1, thresh2, combinedThresh);
 
-        showIMG(combinedThresh);
+        Log.d("DEBUGGING", "finished thresholding");
+
+        showImg(combinedThresh);
 
         //get rid of noise in the image
         Mat kernel = new Mat(20, 20, CvType.CV_8UC1);
         Imgproc.morphologyEx(combinedThresh, mask, Imgproc.MORPH_CLOSE, kernel);
         Imgproc.morphologyEx(mask, mask, Imgproc.MORPH_OPEN, kernel);
 
-        Log.d("CV", "mid CV, finished morphological transformations");
+        Log.d("DEBUGGING", "mid CV, finished morphological transformations");
 
-        showIMG(mask);
+        showImg(mask);
 
         //find the edges of the document
         Imgproc.Canny(mask, edges, 100, 200);
 
-        showIMG(edges);
+        showImg(edges);
 
         Mat hierarchy = new Mat();
         List<MatOfPoint> contours = new ArrayList<>();
@@ -170,8 +177,75 @@ public class extractDocActivity extends AppCompatActivity {
 
         int id = 0;
         int i = 0;
+        double largestSize = -1;
+        double size;
+        for(MatOfPoint contour: contours){
+            size = Imgproc.contourArea(contour);
+            if(size >= largestSize){
+                id = i;
+                largestSize = size;
+            }
+            i++;
+        }
+
+        Imgproc.drawContours(imgFrame, contours, id, new Scalar(255, 255, 0), 10);
+        Log.d("DEBUGGING", "finished cv, found contours");
+
+        showImg(imgFrame);
+
+        saveMat(imgFrame, "frame.png");
+        saveMat(mask, "mask.png");
+        saveMat(edges, "edge.png");
+
+        Log.d("File CV", "Finished saving cv results");
 
         return bmp_img;
+    }
+
+    public void saveMat(Mat image, String filename){
+        Bitmap bmp = null;
+        try{
+            bmp = Bitmap.createBitmap(image.cols(), image.rows(), Bitmap.Config.ARGB_8888);
+            Utils.matToBitmap(image, bmp);
+        }
+        catch(CvException e){
+            Log.d("DEBUGGING : CV", "error creating bitmap" + e.getMessage());
+        }
+
+        FileOutputStream out = null;
+
+        File sd = new File(Environment.getExternalStorageDirectory() + "/documents");
+        boolean success = true;
+        if(!sd.exists()){
+            success = sd.mkdir();
+            Log.d("DEBUGGING", sd.getAbsolutePath());
+        }
+
+        if(success){
+            File dest = new File(sd, filename);
+
+            try{
+                out = new FileOutputStream(dest);
+
+                bmp.compress(Bitmap.CompressFormat.PNG, 100, out);
+                //PNG is loss-less format, compression factor is ignored
+                Log.d("File CV", "Bitmap write to external storage success");
+            }
+            catch(Exception e){
+                Log.d("File CV", e.getMessage());
+            }
+            finally {
+                try {
+                    if(out != null){
+                        out.close();
+                        Log.d("File CV", "outputstream closed");
+                    }
+                }
+                catch(IOException e){
+                    Log.d("File CV", e.getMessage() + "ERROR");
+                }
+            }
+        }
     }
 
 }
