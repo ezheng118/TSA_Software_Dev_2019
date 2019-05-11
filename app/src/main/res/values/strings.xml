@@ -9,4 +9,6 @@
     <string name="scan_button_text">SCAN DOCUMENT</string>
 
     <string name="cv_preview_content_descriptor">CV preview</string>
+
+    <string name="running_cv_text">Processing Image</string>
 </resources>

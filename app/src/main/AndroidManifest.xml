@@ -8,16 +8,16 @@
 
     <uses-feature
         android:name="android.hardware.camera"
-        android:required="false" />
+        android:required="true" />
     <uses-feature
         android:name="android.hardware.camera.autofocus"
-        android:required="false" />
+        android:required="true" />
     <uses-feature
         android:name="android.hardware.camera.front"
-        android:required="false" />
+        android:required="true" />
     <uses-feature
         android:name="android.hardware.camera.front.autofocus"
-        android:required="false" />
+        android:required="true" />
 
     <application
         android:allowBackup="true"
@@ -26,6 +26,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+
         <activity android:name=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -33,10 +34,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ImportImageActivity"
+        <activity
+            android:name=".ImportImageActivity"
             android:parentActivityName=".MainActivity" />
-        <activity android:name=".extractDocActivity"
-            android:parentActivityName=".MainActivity"/>
+
+        <activity
+            android:name=".extractDocActivity"
+            android:parentActivityName=".MainActivity" />
     </application>
 
 </manifest>
