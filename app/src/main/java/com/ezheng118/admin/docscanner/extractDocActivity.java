@@ -28,6 +28,7 @@ import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class extractDocActivity extends AppCompatActivity {
@@ -52,8 +53,8 @@ public class extractDocActivity extends AppCompatActivity {
         try {
             image = convertToBmp(imgUri);
             showImg(image);
-            findDocContours(image);
-            progressMessage.setText("Finished! :)");
+            getDoc(image);
+            //progressMessage.setText("Finished! :)");
         }
         catch(IOException e){
             Log.d("DEBUGGING", e.getMessage());
@@ -109,13 +110,21 @@ public class extractDocActivity extends AppCompatActivity {
         }
     }
 
-    private MatOfPoint findDocContours(Bitmap bmp_img){
+    private void getDoc(Bitmap bmp_img){
         Log.d("CV", "start processing image");
         int width = bmp_img.getWidth();
         int height = bmp_img.getHeight();
 
-        //declaring each frame needed in each step of processing
         Mat imgFrame = new Mat(width, height, CvType.CV_8UC4);
+        Utils.bitmapToMat(bmp_img, imgFrame);
+        MatOfPoint docContour = findDocContours(imgFrame, width, height);
+
+        topDownTransform(imgFrame, docContour);
+    }
+
+    private MatOfPoint findDocContours(Mat imgFrame, int width, int height){
+        Log.d("CV", "begin to find contours");
+
         Mat hsvFrame = new Mat(width, height, CvType.CV_8UC4);
         Mat thresh1 = new Mat(width, height, CvType.CV_8UC4);
         Mat thresh2 = new Mat(width, height, CvType.CV_8UC4);
@@ -124,7 +133,6 @@ public class extractDocActivity extends AppCompatActivity {
         Mat edges = new Mat(width, height, CvType.CV_8UC4);
         Log.d("DEBUGGING", "Able to import and use cv libs");
 
-        Utils.bitmapToMat(bmp_img, imgFrame);
         Log.d("DEBUGGING", "successfully converted from bmp to mat");
 
         //change from RGB to HSV
@@ -135,10 +143,10 @@ public class extractDocActivity extends AppCompatActivity {
         showImg(hsvFrame);
 
         //define the color thresholds for what is white
-        Scalar lower_white1 = new Scalar(10, 0, 110);
-        Scalar upper_white1 = new Scalar(50, 60, 255);
-        Scalar lower_white2 = new Scalar(0, 0, 0);
-        Scalar upper_white2 = new Scalar(0, 0, 0);
+        Scalar lower_white1 = new Scalar(220, 0, 110);
+        Scalar upper_white1 = new Scalar(280, 70, 255);
+        Scalar lower_white2 = new Scalar(90, 0, 110);
+        Scalar upper_white2 = new Scalar(180, 70, 255);
 
         //filter out the the document based on color
         Core.inRange(hsvFrame, lower_white1, upper_white1, thresh1);
@@ -148,7 +156,7 @@ public class extractDocActivity extends AppCompatActivity {
 
         Log.d("DEBUGGING", "finished thresholding");
 
-        showImg(combinedThresh);
+        //showImg(combinedThresh);
 
         //get rid of noise in the image
         Mat kernel = new Mat(20, 20, CvType.CV_8UC1);
@@ -162,7 +170,7 @@ public class extractDocActivity extends AppCompatActivity {
         //find the edges of the document
         Imgproc.Canny(mask, edges, 100, 200);
 
-        showImg(edges);
+        //showImg(edges);
 
         Mat hierarchy = new Mat();
         List<MatOfPoint> contours = new ArrayList<>();
@@ -175,7 +183,7 @@ public class extractDocActivity extends AppCompatActivity {
         double size;
         for(MatOfPoint contour: contours){
             size = Imgproc.contourArea(contour);
-            if(size >= largestSize){
+            if(size > largestSize){
                 id = i;
                 largestSize = size;
             }
@@ -184,7 +192,7 @@ public class extractDocActivity extends AppCompatActivity {
 
         MatOfPoint docContour = contours.get(id);
 
-        Imgproc.drawContours(imgFrame, contours, id, new Scalar(0, 255, 0), 1);
+        Imgproc.drawContours(imgFrame, contours, id, new Scalar(0, 255, 0), 10);
         Log.d("DEBUGGING", "finished cv, found contours");
 
         showImg(imgFrame);
@@ -245,7 +253,10 @@ public class extractDocActivity extends AppCompatActivity {
         MatOfPoint2f approxContour = new MatOfPoint2f();
         Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approxContour, 0.3*perimeter, true);
 
-        MatOfPoint2f page = new MatOfPoint2f();
+        //progressMessage.setText(approxContour.toArray().toString());
+
+        //MatOfPoint2f page = new MatOfPoint2f();
+        double[][] page = new double[approxContour.width()][2];
 
         /***************************
 
@@ -258,9 +269,27 @@ public class extractDocActivity extends AppCompatActivity {
          ***************************/
 
         for(int i = 0; i < approxContour.width(); i++) {
-            page.put(i, 0, approxContour.get(i, 0));
+            //page.put(i, 0, approxContour.get(i, 0));
+            page[i] = approxContour.get(i, 0);
         }
 
+        String asdf = page.length + " " + approxContour.width() + " page contents: ";// + Arrays.toString(page[0]);
+        for(int i = 0; i < page.length; i++) {
+            asdf += Arrays.toString(page[i]) + " ";
+        }
+
+        progressMessage.setText(asdf);
+        //double[] dif;
+        //double[] sum;
+
+
+    }
+
+    private void diff(){
+
+    }
+
+    private void summ(){
 
     }
 
