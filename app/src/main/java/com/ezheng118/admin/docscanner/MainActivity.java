@@ -9,6 +9,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 
 import android.hardware.Camera;
+import android.net.Uri;
 import android.os.Environment;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -25,8 +26,7 @@ import org.opencv.android.OpenCVLoader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+
 
 public class MainActivity extends AppCompatActivity {
 
@@ -117,9 +117,65 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onPictureTaken(byte[] data, Camera camera){
             Log.d("CAMERA DEBUGGING", "onPictureTaken: Start taking picture");
+            Bitmap pic = BitmapFactory.decodeByteArray(data, 0, data.length);
+            Uri imUri = null;
 
+            //save the taken picture
+            FileOutputStream out = null;
+
+            File sd = new File(Environment.getExternalStorageDirectory() + "/documents");
+            boolean success = true;
+            if(!sd.exists()){
+                success = sd.mkdir();
+                Log.d("DEBUGGING", sd.getAbsolutePath());
+            }
+
+            if(success){
+                File dest = new File(sd, "im.png");
+
+                try {
+                    out = new FileOutputStream(dest);
+                    pic.compress(Bitmap.CompressFormat.PNG, 100, out);
+
+                    imUri = Uri.fromFile(dest);
+                    Log.d("FILE SAVE: ", "got uri from file path");
+                }
+                catch(Exception e){
+                    Log.d("FILE SAVE ERROR: ", e.getMessage());
+                }
+                finally {
+                    try {
+                        if (out != null) {
+                            out.close();
+                            Log.d("FILE SAVE:", "save complete, FileOutputStream closed");
+                        }
+                    }
+                    catch (IOException e){
+                        Log.d("FILE SAVE ERROR: ", e.getMessage());
+                    }
+                }
+
+            }
+
+            if(imUri != null){
+                picTaken(imUri);
+            }
         }
     };
+
+    private void picTaken(Uri imUri){
+        //will start a new activity that takes the selected image and extracts the document from it
+        Intent runCV = new Intent(this, extractDocActivity.class);
+
+        //add the uri of the image to the intent to pass to the other activity
+        runCV.putExtra("img_uri", imUri.toString());
+
+        Log.d("DEBUGGING", "starting cv activity from picTaken");
+        startActivity(runCV);
+
+        //when this is called, the activity is done and can be closed
+        Log.d("DEBUGGING", "made it to the end of import activity");
+    }
 
     /** Check if this device has a camera */
     private boolean checkCameraHardware(Context context) {
@@ -143,46 +199,11 @@ public class MainActivity extends AppCompatActivity {
         }
         return c; // returns null if camera is unavailable
     }
+
     public void importImage(View view){
         Intent importIntent = new Intent(this, ImportImageActivity.class);
         startActivity(importIntent);
     }
 
-    public void setCameraDisplayOrientation(){
-
-        Camera.CameraInfo info = new Camera.CameraInfo();
-
-        //cameraId of 1 indicates the forward facing camera
-        Camera.getCameraInfo(1, info);
-
-        int rotation = this.getWindowManager().getDefaultDisplay().getRotation();
-        int degrees = 0;
-
-        switch(rotation){
-            case Surface.ROTATION_0:
-                degrees = 0;
-                break;
-
-            case Surface.ROTATION_90:
-                degrees = 90;
-                break;
-            case Surface.ROTATION_180:
-                degrees = 180;
-                break;
-            case Surface.ROTATION_270:
-                degrees = 270;
-                break;
-            default:
-                degrees = 0;
-                break;
-        }
-
-        int result;
-        result = (info.orientation + degrees) % 360;
-        //compensate for mirror
-        result = (360 - result) % 360;
-
-
-        mCamera.setDisplayOrientation(result);
-    }
+    
 }

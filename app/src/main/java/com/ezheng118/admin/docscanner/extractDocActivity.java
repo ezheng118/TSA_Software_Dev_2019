@@ -9,6 +9,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.ImageView;
+import android.widget.TextView;
 
 import org.opencv.android.Utils;
 import org.opencv.core.Core;
@@ -17,6 +18,7 @@ import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfByte;
 import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Scalar;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
@@ -31,6 +33,7 @@ import java.util.List;
 public class extractDocActivity extends AppCompatActivity {
 
     ImageView imPreview;
+    TextView progressMessage;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,51 +46,28 @@ public class extractDocActivity extends AppCompatActivity {
         Log.d("DEBUGGING", "On create: got bitmap uri from previous activity");
 
         imPreview = findViewById(R.id.image_processing_preview);
+        imPreview.setRotation(90);
+        progressMessage = findViewById(R.id.progress_description);
 
         try {
             image = convertToBmp(imgUri);
             showImg(image);
             findDocContours(image);
+            progressMessage.setText("Finished! :)");
         }
         catch(IOException e){
             Log.d("DEBUGGING", e.getMessage());
         }
+
     }
 
     public void onResume(){
         super.onResume();
-
-        //code to get OpenCV in the program, will not work unless called from MainActivity
-        /*if(!OpenCVLoader.initDebug()){
-            Log.d("DEBUGGING", "internal OpenCV library not found. Using OpenCV Manager for initialization");
-            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0, this, mLoaderCallback);
-        }
-        else
-        {
-            Log.d("DEBUGGING", "OpenCV library found inside package");
-            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
-        }*/
     }
 
     protected void onDestroy(){
         super.onDestroy();
     }
-
-    /*private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
-        @Override
-        public void onManagerConnected(int status){
-            switch(status){
-                case LoaderCallbackInterface.SUCCESS:
-                {
-                    Log.i("OPENCV", "OpenCV loaded successfully");
-                } break;
-                default:
-                {
-                    super.onManagerConnected(status);
-                } break;
-            }
-        }
-    };*/
 
     private Bitmap convertToBmp(Uri uri) throws IOException{
         ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "r");
@@ -96,6 +76,20 @@ public class extractDocActivity extends AppCompatActivity {
         pfd.close();
 
         return img;
+    }
+
+    private Bitmap convertToBmp(Mat image){
+        Bitmap newBmp = null;
+
+        try{
+            newBmp = Bitmap.createBitmap(image.cols(), image.rows(), Bitmap.Config.ARGB_8888);
+            Utils.matToBitmap(image, newBmp);
+        }
+        catch(CvException e){
+            Log.d("DEBUGGING : CV", "error creating bitmap" + e.getMessage());
+        }
+
+        return newBmp;
     }
 
     private void showImg(Bitmap img){
@@ -115,7 +109,7 @@ public class extractDocActivity extends AppCompatActivity {
         }
     }
 
-    private Bitmap findDocContours(Bitmap bmp_img){
+    private MatOfPoint findDocContours(Bitmap bmp_img){
         Log.d("CV", "start processing image");
         int width = bmp_img.getWidth();
         int height = bmp_img.getHeight();
@@ -188,7 +182,9 @@ public class extractDocActivity extends AppCompatActivity {
             i++;
         }
 
-        Imgproc.drawContours(imgFrame, contours, id, new Scalar(255, 255, 0), 10);
+        MatOfPoint docContour = contours.get(id);
+
+        Imgproc.drawContours(imgFrame, contours, id, new Scalar(0, 255, 0), 1);
         Log.d("DEBUGGING", "finished cv, found contours");
 
         showImg(imgFrame);
@@ -199,18 +195,11 @@ public class extractDocActivity extends AppCompatActivity {
 
         Log.d("File CV", "Finished saving cv results");
 
-        return bmp_img;
+        return docContour;
     }
 
     public void saveMat(Mat image, String filename){
-        Bitmap bmp = null;
-        try{
-            bmp = Bitmap.createBitmap(image.cols(), image.rows(), Bitmap.Config.ARGB_8888);
-            Utils.matToBitmap(image, bmp);
-        }
-        catch(CvException e){
-            Log.d("DEBUGGING : CV", "error creating bitmap" + e.getMessage());
-        }
+        Bitmap bmp = convertToBmp(image);
 
         FileOutputStream out = null;
 
@@ -246,6 +235,33 @@ public class extractDocActivity extends AppCompatActivity {
                 }
             }
         }
+    }
+
+    private void topDownTransform(Mat im, MatOfPoint contour){
+        Mat topDown = im;
+
+        double perimeter = Imgproc.arcLength(new MatOfPoint2f(contour.toArray()), true);
+
+        MatOfPoint2f approxContour = new MatOfPoint2f();
+        Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approxContour, 0.3*perimeter, true);
+
+        MatOfPoint2f page = new MatOfPoint2f();
+
+        /***************************
+
+         not sure if this next bit is correct
+
+         the goal is to get the first element of every row
+
+         not sure if .height() or .width accomplishes this
+
+         ***************************/
+
+        for(int i = 0; i < approxContour.width(); i++) {
+            page.put(i, 0, approxContour.get(i, 0));
+        }
+
+
     }
 
 }
