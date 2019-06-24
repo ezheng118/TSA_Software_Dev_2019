@@ -122,7 +122,7 @@ public class extractDocActivity extends AppCompatActivity {
         Utils.bitmapToMat(bmp_img, imgFrame);
         MatOfPoint docContour = findDocContours(imgFrame);
 
-        //topDownTransform(imgFrame, docContour);
+        topDownTransform(imgFrame, docContour);
     }
 
     private MatOfPoint findDocContours(Mat imgFrame){
@@ -144,7 +144,6 @@ public class extractDocActivity extends AppCompatActivity {
         Log.d("DEBUGGING", "converted to hsv");
 
         showImg(hsvFrame);
-        testView.setImageBitmap(convertToBmp(hsvFrame));
 
         //define the color thresholds for what is white
         Scalar lower_white1 = new Scalar(0, 0, 120);
@@ -210,10 +209,12 @@ public class extractDocActivity extends AppCompatActivity {
 
         MatOfPoint docContour = contours.get(id);
 
-        Imgproc.drawContours(imgFrame, contours, id, new Scalar(0, 255, 0), 10);
+        Mat contourDrawing = new Mat(imgFrame.size(), CvType.CV_8UC4);
+        contourDrawing = imgFrame.clone();
+        Imgproc.drawContours(contourDrawing, contours, id, new Scalar(0, 255, 0), 10);
         Log.d("DEBUGGING", "finished cv, found contours");
 
-        showImg(imgFrame);
+        showImg(contourDrawing);
         //testView.setImageBitmap(convertToBmp(imgFrame));
 
         saveMat(imgFrame, "frame.png");
@@ -271,13 +272,13 @@ public class extractDocActivity extends AppCompatActivity {
         MatOfPoint approx1f = new MatOfPoint();
         List<MatOfPoint> temp_contour = new ArrayList<>();
 
-        Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approxContour, 0.3*perimeter, true);
+        Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approxContour, 0.1*perimeter, true);
 
         approxContour.convertTo(approx1f, CvType.CV_32S);
         temp_contour.add(approx1f);
 
-        Imgproc.drawContours(topDown, temp_contour, 0, new Scalar(0, 255, 0), 10);
-        //testView.setImageBitmap(convertToBmp(topDown));
+        Imgproc.drawContours(topDown, temp_contour, 0, new Scalar(255, 0, 255), 10);
+        testView.setImageBitmap(convertToBmp(topDown));
 
         //progressMessage.setText(approxContour.toArray().toString());
 
