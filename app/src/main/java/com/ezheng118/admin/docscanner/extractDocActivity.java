@@ -20,6 +20,7 @@ import org.opencv.core.MatOfByte;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Scalar;
+import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 
@@ -27,6 +28,8 @@ import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -34,7 +37,6 @@ import java.util.List;
 public class extractDocActivity extends AppCompatActivity {
 
     ImageView imPreview;
-    ImageView testView;
     TextView progressMessage;
 
     @Override
@@ -49,8 +51,6 @@ public class extractDocActivity extends AppCompatActivity {
 
         imPreview = findViewById(R.id.image_processing_preview);
         imPreview.setRotation(90);
-        testView = findViewById(R.id.testing);
-        testView.setRotation(90);
         progressMessage = findViewById(R.id.progress_description);
 
         try {
@@ -143,7 +143,7 @@ public class extractDocActivity extends AppCompatActivity {
 
         Log.d("DEBUGGING", "converted to hsv");
 
-        showImg(hsvFrame);
+        //showImg(hsvFrame);
 
         //define the color thresholds for what is white
         Scalar lower_white1 = new Scalar(0, 0, 120);
@@ -215,7 +215,6 @@ public class extractDocActivity extends AppCompatActivity {
         Log.d("DEBUGGING", "finished cv, found contours");
 
         showImg(contourDrawing);
-        //testView.setImageBitmap(convertToBmp(imgFrame));
 
         saveMat(imgFrame, "frame.png");
         saveMat(mask, "mask.png");
@@ -265,59 +264,168 @@ public class extractDocActivity extends AppCompatActivity {
         }
     }
 
-    private void topDownTransform(Mat im, MatOfPoint contour){
+    private Mat topDownTransform(Mat im, MatOfPoint contour){
         Mat topDown = im;
         double perimeter = Imgproc.arcLength(new MatOfPoint2f(contour.toArray()), true);
         MatOfPoint2f approxContour = new MatOfPoint2f();
         MatOfPoint approx1f = new MatOfPoint();
         List<MatOfPoint> temp_contour = new ArrayList<>();
 
-        Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approxContour, 0.1*perimeter, true);
+        //approxPolyDp should give a rectangular approximation of the document contour that is found
+        //from this contour you can find the four corners of the document
+        Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approxContour, 0.03*perimeter, true);
 
+
+        //just stuff used to draw the approximate contour
         approxContour.convertTo(approx1f, CvType.CV_32S);
         temp_contour.add(approx1f);
-
         Imgproc.drawContours(topDown, temp_contour, 0, new Scalar(255, 0, 255), 10);
-        testView.setImageBitmap(convertToBmp(topDown));
 
-        //progressMessage.setText(approxContour.toArray().toString());
 
         //MatOfPoint2f page = new MatOfPoint2f();
-        double[][] page = new double[approxContour.width()][2];
+        double[][] page = new double[approxContour.height()][2];
+        //use height to get the first point of each row, corresponds to the four corners
 
-        /***************************
-
-         not sure if this next bit is correct
-
-         the goal is to get the first element of every row
-
-         not sure if .height() or .width accomplishes this
-
-         ***************************/
-
-        for(int i = 0; i < approxContour.width(); i++) {
+        for(int i = 0; i < approxContour.height(); i++) {
             //page.put(i, 0, approxContour.get(i, 0));
+
+            //this *should* result in a double[2] array being returned from get() and being put in page
             page[i] = approxContour.get(i, 0);
         }
 
-        String asdf = page.length + " " + approxContour.width() + " page contents: ";// + Arrays.toString(page[0]);
-        for(int i = 0; i < page.length; i++) {
-            asdf += Arrays.toString(page[i]) + " ";
+        double[] dif = diff(page);
+
+        double[] sum = summ(page);
+
+        //points = corners of the page ordered as = [top_left, top_right, bottom_left, bottom_right]
+        double[][] points = orderCorners(page, dif, sum);
+
+        double width1 = Math.sqrt(((points[3][0] - points[2][0])*(points[3][0]-points[2][0])
+                + (points[3][1]-points[2][1])*(points[3][1]-points[2][1])));
+        double width2 = Math.sqrt(((points[1][0] - points[0][0])*(points[1][0]-points[0][0])
+                + (points[1][1]-points[0][1])*(points[1][1]-points[0][1])));
+
+        double height1 = Math.sqrt(((points[1][0] - points[3][0])*(points[1][0]-points[3][0])
+                + (points[1][1]-points[3][1])*(points[1][1]-points[3][1])));
+        double height2 = Math.sqrt(((points[0][0] - points[2][0])*(points[0][0]-points[2][0])
+                + (points[0][1]-points[2][1])*(points[0][1]-points[2][1])));
+
+        double maxWidth;
+        double maxHeight;
+
+        if(width1 > width2){
+            maxWidth = width1;
+        }
+        else{
+            maxWidth = width2;
+        }
+        if(height1 > height2){
+            maxHeight = height1;
+        }
+        else{
+            maxHeight = height2;
         }
 
-        progressMessage.setText(asdf);
-        //double[] dif;
-        //double[] sum;
+        maxWidth = new BigDecimal(maxWidth).setScale(0, RoundingMode.HALF_UP).doubleValue();
+        maxHeight = new BigDecimal(maxHeight).setScale(0, RoundingMode.HALF_UP).doubleValue();
 
+        //dst[0] = top left = [0, 0]
+        //dst[1] = top right = [maxWidth - 1, 0]
+        //dst[2] = bottom left = [0, maxHeight - 1]
+        //dst[3] = bottom right = [maxWidth - 1, maxHeight - 1]
+        double[][] destination = new double[4][2];
+        destination[1][0] = maxWidth - 1;
+        destination[2][1] = maxHeight - 1;
+        destination[3][0] = maxWidth - 1;
+        destination[3][1] = maxHeight - 1;
 
+        Mat src = new Mat(4, 2, CvType.CV_32FC1);
+        Mat dst = new Mat(4, 2, CvType.CV_32FC1);
+
+        for(int i = 0; i < 4; i++){
+            src.put(i, 0, points[i]);
+            dst.put(i, 0, destination[i]);
+        }
+
+        Mat transformationMat = Imgproc.getPerspectiveTransform(src, dst);
+        Imgproc.warpPerspective(im, topDown, transformationMat, new Size(maxWidth, maxHeight));
+
+        topDown = resizeToLetter(topDown);
+
+        showImg(topDown);
+
+        return topDown;
     }
 
-    private void diff(){
+    private double[] diff(double[][] inputArray){
+        double[] diffedArray = new double[inputArray.length];
 
+        int i = 0;
+        for(double[] coordinate: inputArray){
+            diffedArray[i] = coordinate[1] - coordinate[0];
+            i++;
+        }
+
+        return diffedArray;
     }
 
-    private void summ(){
+    private double[] summ(double[][] inputArray){
+        double[] summedArray = new double[inputArray.length];
 
+        int i = 0;
+        for(double[] coordinate: inputArray){
+            summedArray[i] = coordinate[1] + coordinate[0];
+            i++;
+        }
+
+        return summedArray;
     }
 
+    private double[][] orderCorners(double[][] unordered, double[] dif, double[] sum){
+        int diffMinIndex = 0;
+        int diffMaxIndex = 0;
+        int sumMinIndex = 0;
+        int sumMaxIndex = 0;
+
+        for(int i = 0; i < dif.length; i++){
+            if(dif[diffMinIndex] > dif[i]){
+                diffMinIndex = i;
+            }
+
+            if(dif[diffMaxIndex] < dif[i]){
+                diffMaxIndex = i;
+            }
+        }
+
+        for(int i = 0; i < sum.length; i++){
+            if(sum[sumMinIndex] > sum[i]){
+                sumMinIndex = i;
+            }
+
+            if(sum[sumMaxIndex] < sum[i]){
+                sumMaxIndex = i;
+            }
+        }
+
+        //[top_left, top_right, bottom_left, bottom_right]
+        double[][] ordered = {unordered[sumMinIndex], unordered[diffMinIndex], unordered[diffMaxIndex], unordered[sumMaxIndex]};
+
+        return ordered;
+    }
+
+    private Mat resizeToLetter(Mat m){
+        Mat resized = new Mat();
+        Size letter;
+
+        if(m.size().height * .773 != m.size().width){
+            letter = new Size(m.size().width, m.size().width*1.294);
+        }
+        else{
+            letter = m.size();
+        }
+
+        Imgproc.resize(m, resized, letter);
+
+        return resized;
+    }
 }
