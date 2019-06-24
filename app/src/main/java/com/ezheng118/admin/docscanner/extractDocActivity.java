@@ -34,6 +34,7 @@ import java.util.List;
 public class extractDocActivity extends AppCompatActivity {
 
     ImageView imPreview;
+    ImageView testView;
     TextView progressMessage;
 
     @Override
@@ -48,6 +49,8 @@ public class extractDocActivity extends AppCompatActivity {
 
         imPreview = findViewById(R.id.image_processing_preview);
         imPreview.setRotation(90);
+        testView = findViewById(R.id.testing);
+        testView.setRotation(90);
         progressMessage = findViewById(R.id.progress_description);
 
         try {
@@ -98,7 +101,7 @@ public class extractDocActivity extends AppCompatActivity {
     }
 
     private void showImg(Mat img_prev){
-        Bitmap bmp;
+        /*Bitmap bmp;
         try {
             bmp = Bitmap.createBitmap(img_prev.cols(), img_prev.rows(), Bitmap.Config.ARGB_8888);
             Utils.matToBitmap(img_prev, bmp);
@@ -107,30 +110,30 @@ public class extractDocActivity extends AppCompatActivity {
         }
         catch(CvException e){
             Log.d("DEBUGGING", "Error converting mat to bmp (preview image): " + e.getMessage());
-        }
+        }*/
+
+        showImg(convertToBmp(img_prev));
     }
 
     private void getDoc(Bitmap bmp_img){
         Log.d("CV", "start processing image");
-        int width = bmp_img.getWidth();
-        int height = bmp_img.getHeight();
 
-        Mat imgFrame = new Mat(width, height, CvType.CV_8UC4);
+        Mat imgFrame = new Mat(bmp_img.getWidth(), bmp_img.getHeight(), CvType.CV_8UC4);
         Utils.bitmapToMat(bmp_img, imgFrame);
-        MatOfPoint docContour = findDocContours(imgFrame, width, height);
+        MatOfPoint docContour = findDocContours(imgFrame);
 
-        topDownTransform(imgFrame, docContour);
+        //topDownTransform(imgFrame, docContour);
     }
 
-    private MatOfPoint findDocContours(Mat imgFrame, int width, int height){
+    private MatOfPoint findDocContours(Mat imgFrame){
         Log.d("CV", "begin to find contours");
 
-        Mat hsvFrame = new Mat(width, height, CvType.CV_8UC4);
-        Mat thresh1 = new Mat(width, height, CvType.CV_8UC4);
-        Mat thresh2 = new Mat(width, height, CvType.CV_8UC4);
-        Mat combinedThresh = new Mat(width, height, CvType.CV_8UC4);
-        Mat mask = new Mat(width, height, CvType.CV_8UC4);
-        Mat edges = new Mat(width, height, CvType.CV_8UC4);
+        Mat hsvFrame = new Mat(imgFrame.size(), CvType.CV_8UC4);
+        Mat thresh1 = new Mat(imgFrame.size(), CvType.CV_8UC4);
+        Mat thresh2 = new Mat(imgFrame.size(), CvType.CV_8UC4);
+        Mat combinedThresh = new Mat(imgFrame.size(), CvType.CV_8UC4);
+        Mat mask = new Mat(imgFrame.size(), CvType.CV_8UC4);
+        Mat edges = new Mat(imgFrame.size(), CvType.CV_8UC4);
         Log.d("DEBUGGING", "Able to import and use cv libs");
 
         Log.d("DEBUGGING", "successfully converted from bmp to mat");
@@ -141,12 +144,21 @@ public class extractDocActivity extends AppCompatActivity {
         Log.d("DEBUGGING", "converted to hsv");
 
         showImg(hsvFrame);
+        testView.setImageBitmap(convertToBmp(hsvFrame));
 
         //define the color thresholds for what is white
+        Scalar lower_white1 = new Scalar(0, 0, 120);
+        Scalar upper_white1 = new Scalar(60, 50, 255);
+        /*supposed to work but actually didnt work at all
+        Scalar lower_white2 = new Scalar(130, 0, 120);
+        Scalar upper_white2 = new Scalar(255, 70, 255);
+
+        *I just guessed randomly here
         Scalar lower_white1 = new Scalar(220, 0, 110);
         Scalar upper_white1 = new Scalar(280, 70, 255);
-        Scalar lower_white2 = new Scalar(90, 0, 110);
-        Scalar upper_white2 = new Scalar(180, 70, 255);
+        */
+        Scalar lower_white2 = new Scalar(110, 0, 120);
+        Scalar upper_white2 = new Scalar(180, 50, 255);
 
         //filter out the the document based on color
         Core.inRange(hsvFrame, lower_white1, upper_white1, thresh1);
@@ -159,23 +171,29 @@ public class extractDocActivity extends AppCompatActivity {
         //showImg(combinedThresh);
 
         //get rid of noise in the image
-        Mat kernel = new Mat(20, 20, CvType.CV_8UC1);
+        Mat kernel = new Mat(10, 10, CvType.CV_8UC1);
         Imgproc.morphologyEx(combinedThresh, mask, Imgproc.MORPH_CLOSE, kernel);
         Imgproc.morphologyEx(mask, mask, Imgproc.MORPH_OPEN, kernel);
 
         Log.d("DEBUGGING", "mid CV, finished morphological transformations");
 
-        showImg(mask);
+        //showImg(mask);
+
+        /* for some reason, using canny to find the edges of a document
+        works really badly, so I'm just going to use the mask instead
 
         //find the edges of the document
-        Imgproc.Canny(mask, edges, 100, 200);
+        Imgproc.Canny(mask, edges, 30, 30);
+        Mat k2 = new Mat(3, 3, CvType.CV_8UC1);
+        Imgproc.morphologyEx(edges, edges, Imgproc.MORPH_CLOSE, k2);
 
         //showImg(edges);
+        */
+
 
         Mat hierarchy = new Mat();
         List<MatOfPoint> contours = new ArrayList<>();
-        Imgproc.findContours(edges, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
-
+        Imgproc.findContours(mask, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_NONE);
 
         int id = 0;
         int i = 0;
@@ -196,6 +214,7 @@ public class extractDocActivity extends AppCompatActivity {
         Log.d("DEBUGGING", "finished cv, found contours");
 
         showImg(imgFrame);
+        //testView.setImageBitmap(convertToBmp(imgFrame));
 
         saveMat(imgFrame, "frame.png");
         saveMat(mask, "mask.png");
@@ -247,11 +266,18 @@ public class extractDocActivity extends AppCompatActivity {
 
     private void topDownTransform(Mat im, MatOfPoint contour){
         Mat topDown = im;
-
         double perimeter = Imgproc.arcLength(new MatOfPoint2f(contour.toArray()), true);
-
         MatOfPoint2f approxContour = new MatOfPoint2f();
+        MatOfPoint approx1f = new MatOfPoint();
+        List<MatOfPoint> temp_contour = new ArrayList<>();
+
         Imgproc.approxPolyDP(new MatOfPoint2f(contour.toArray()), approxContour, 0.3*perimeter, true);
+
+        approxContour.convertTo(approx1f, CvType.CV_32S);
+        temp_contour.add(approx1f);
+
+        Imgproc.drawContours(topDown, temp_contour, 0, new Scalar(0, 255, 0), 10);
+        //testView.setImageBitmap(convertToBmp(topDown));
 
         //progressMessage.setText(approxContour.toArray().toString());
 
