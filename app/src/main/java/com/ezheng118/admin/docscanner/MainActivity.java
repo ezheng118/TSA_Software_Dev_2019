@@ -50,6 +50,10 @@ public class MainActivity extends AppCompatActivity {
             Log.d("CAMERA", "Camera doesn't work");
         }
 
+        Camera.Parameters mParameters = mCamera.getParameters();
+        mParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+        mCamera.setParameters(mParameters);
+
         // Create our Preview view and set it as the content of our activity.
         mPreview = new CameraPreview(this, mCamera, this);
 
@@ -76,9 +80,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    public void onPause() {
+        super.onPause();
+        try {
+            // release the camera immediately on pause event
+            // releaseCamera();
+            mCamera.release();
+            mCamera = null;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    @Override
     public void onResume() {
         super.onResume();
-
         if(!OpenCVLoader.initDebug()){
             Log.d("DEBUGGING", "internal OpenCV library not found. Using OpenCV Manager for initialization");
             OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_3_4_0, this, mLoaderCallback);
@@ -88,6 +103,17 @@ public class MainActivity extends AppCompatActivity {
             Log.d("DEBUGGING", "OpenCV library found inside package");
             mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
         }
+        mCamera = Camera.open();
+
+        Camera.Parameters mParameters = mCamera.getParameters();
+        mParameters.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE);
+        mCamera.setParameters(mParameters);
+
+        // Create our Preview view and set it as the content of our activity.
+        mPreview = new CameraPreview(this, mCamera, this);
+
+        FrameLayout preview = findViewById(R.id.camera_preview);
+        preview.addView(mPreview);
     }
 
     @Override

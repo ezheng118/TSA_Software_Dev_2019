@@ -50,7 +50,7 @@ public class extractDocActivity extends AppCompatActivity {
         Log.d("DEBUGGING", "On create: got bitmap uri from previous activity");
 
         imPreview = findViewById(R.id.image_processing_preview);
-        imPreview.setRotation(90);
+        imPreview.setRotation(0);
         progressMessage = findViewById(R.id.progress_description);
 
         try {
@@ -226,6 +226,7 @@ public class extractDocActivity extends AppCompatActivity {
     }
 
     public void saveMat(Mat image, String filename){
+        /*
         Bitmap bmp = convertToBmp(image);
 
         FileOutputStream out = null;
@@ -262,6 +263,7 @@ public class extractDocActivity extends AppCompatActivity {
                 }
             }
         }
+        */
     }
 
     private Mat topDownTransform(Mat im, MatOfPoint contour){
@@ -279,7 +281,8 @@ public class extractDocActivity extends AppCompatActivity {
         //just stuff used to draw the approximate contour
         approxContour.convertTo(approx1f, CvType.CV_32S);
         temp_contour.add(approx1f);
-        Imgproc.drawContours(topDown, temp_contour, 0, new Scalar(255, 0, 255), 10);
+        //for debug
+        //Imgproc.drawContours(topDown, temp_contour, 0, new Scalar(255, 0, 255), 10);
 
 
         //MatOfPoint2f page = new MatOfPoint2f();
