@@ -8,6 +8,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 
+import android.graphics.Matrix;
 import android.hardware.Camera;
 import android.net.Uri;
 import android.os.Environment;
@@ -144,6 +145,10 @@ public class MainActivity extends AppCompatActivity {
         public void onPictureTaken(byte[] data, Camera camera){
             Log.d("CAMERA DEBUGGING", "onPictureTaken: Start taking picture");
             Bitmap pic = BitmapFactory.decodeByteArray(data, 0, data.length);
+            Matrix rotmat = new Matrix();
+            rotmat.postRotate(-90);
+            Bitmap scaledBmp = Bitmap.createScaledBitmap(pic, pic.getWidth(), pic.getHeight(), true);
+            pic = Bitmap.createBitmap(scaledBmp, 0, 0, scaledBmp.getWidth(), scaledBmp.getHeight(), rotmat, true);
             Uri imUri = null;
 
             //save the taken picture
